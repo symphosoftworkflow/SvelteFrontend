@@ -1,19 +1,18 @@
-FROM node:20-alpine
+FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy package files
 COPY package*.json ./
+RUN npm ci
 
-# Install dependencies
-RUN npm install
-
-# Copy source code
 COPY . .
+RUN npm run build
 
-# Expose port
-EXPOSE 5173
+FROM nginx:alpine AS runtime
 
-# Start dev server with hot-reload
-CMD ["npm", "run", "dev"]
+COPY --from=build /app/build /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
 

@@ -5,16 +5,18 @@
 	"scripts": {
 		"dev": "vite dev --host 0.0.0.0",
 		"build": "vite build",
-		"preview": "vite preview",
+		"preview": "vite preview --host 0.0.0.0",
+		"serve:static": "serve build",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
 	"dependencies": {
-		"@sveltejs/adapter-auto": "^3.0.0"
+		"@sveltejs/adapter-static": "^3.0.10"
 	},
 	"devDependencies": {
 		"@sveltejs/kit": "^2.0.0",
 		"@sveltejs/vite-plugin-svelte": "^3.0.0",
+		"serve": "^14.2.5",
 		"svelte": "^5.0.0",
 		"svelte-check": "^3.6.0",
 		"typescript": "^5.0.0",
@@ -22,4 +24,3 @@
 	},
 	"type": "module"
 }
-
