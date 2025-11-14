@@ -1,155 +1,244 @@
-<script>
-	// Profile page
+<script lang="ts">
+	import BookingConfirmation from '$lib/components/BookingConfirmation.svelte';
+
+	type BookingSummary = {
+		reference: string;
+		serviceName: string;
+		scheduledFor: string;
+		location?: string;
+		staffName?: string;
+		price?: number;
+		notes?: string;
+	};
+
+	const booking: BookingSummary = {
+		reference: 'BK-2048',
+		serviceName: 'Deep Tissue Massage',
+		scheduledFor: new Date().toISOString(),
+		location: 'Riverwalk Wellness Studio · 57 Market St, Austin',
+		staffName: 'Morgan Lee',
+		price: 145,
+		notes: 'Arrive 10 min early for intake form.'
+	};
+
+	const supportContact = {
+		phone: '+1 (555) 010-7788',
+		email: 'support@massage-services.app'
+	};
+
+	const actions = [
+		{ id: 'add-calendar', label: 'Add to calendar', variant: 'ghost' as const },
+		{ id: 'book-again', label: 'Book another session', variant: 'primary' as const },
+		{ id: 'share', label: 'Share confirmation', variant: 'secondary' as const }
+	];
+
+	let confirmationStatus: 'loading' | 'success' | 'error' = 'success';
+let lastAction: string | null = null;
+
+function handleAction(payload: { id: string }) {
+	lastAction = payload.id;
+}
 </script>
 
-<main class="page-container">
-	<h1>Profile</h1>
-	<div class="content">
-		<div class="profile-header">
-			<div class="avatar">JD</div>
-			<h2>John Doe</h2>
-			<p class="email">john.doe@example.com</p>
+<main class="profile-page">
+	<section class="profile-card">
+		<div class="avatar">JD</div>
+		<h1>John Doe</h1>
+		<p class="email">john.doe@example.com</p>
+
+		<div class="stats">
+			<div>
+				<strong>12</strong>
+				<span>Total bookings</span>
+			</div>
+			<div>
+				<strong>4.9★</strong>
+				<span>Client rating</span>
+			</div>
+			<div>
+				<strong>Gold</strong>
+				<span>Loyalty tier</span>
+			</div>
+		</div>
+	</section>
+
+	<section class="profile-grid">
+		<div class="profile-section">
+			<h2>Account Information</h2>
+			<ul>
+				<li>
+					<span>Phone</span>
+					<strong>+1 (555) 123-4567</strong>
+				</li>
+				<li>
+					<span>Member since</span>
+					<strong>January 2024</strong>
+				</li>
+				<li>
+					<span>Preferred location</span>
+					<strong>Downtown Wellness Hub</strong>
+				</li>
+			</ul>
 		</div>
 
 		<div class="profile-section">
-			<h3>Account Information</h3>
-			<div class="info-item">
-				<span class="label">Phone:</span>
-				<span class="value">+1 (555) 123-4567</span>
-			</div>
-			<div class="info-item">
-				<span class="label">Member Since:</span>
-				<span class="value">January 2024</span>
-			</div>
-			<div class="info-item">
-				<span class="label">Total Bookings:</span>
-				<span class="value">12</span>
-			</div>
+			<h2>Preferences</h2>
+			<ul>
+				<li>
+					<span>Massage style</span>
+					<strong>Swedish / Relaxation</strong>
+				</li>
+				<li>
+					<span>Duration</span>
+					<strong>60 minutes</strong>
+				</li>
+				<li>
+					<span>Notes</span>
+					<strong>Prefer calming music + lavender scents</strong>
+				</li>
+			</ul>
 		</div>
+	</section>
 
-		<div class="profile-section">
-			<h3>Preferences</h3>
-			<div class="preference-item">
-				<span>Preferred Massage Type:</span>
-				<span>Swedish Massage</span>
-			</div>
-			<div class="preference-item">
-				<span>Preferred Duration:</span>
-				<span>60 minutes</span>
-			</div>
-		</div>
+	<section class="confirmation-section">
+		<h2>Upcoming confirmation</h2>
+		<BookingConfirmation
+			booking={booking}
+			status={confirmationStatus}
+			supportContact={supportContact}
+			actions={actions}
+			onAction={handleAction}
+		/>
 
-		<button class="edit-button">Edit Profile</button>
-	</div>
+		{#if lastAction}
+			<p class="action-feedback">Last action: {lastAction}</p>
+		{/if}
+	</section>
 </main>
 
 <style>
-	.page-container {
-		padding: 2rem 1rem;
-		padding-bottom: 80px; /* Space for bottom nav */
-		max-width: 800px;
+	.profile-page {
+		padding: 2rem 1.5rem 5.5rem;
+		max-width: 960px;
 		margin: 0 auto;
-	}
-
-	h1 {
-		font-size: 2rem;
-		margin-bottom: 1.5rem;
-		color: #333;
-	}
-
-	.content {
 		display: flex;
 		flex-direction: column;
 		gap: 1.5rem;
 	}
 
-	.profile-header {
-		text-align: center;
-		padding: 2rem 0;
+	.profile-card {
 		background: white;
-		border-radius: 12px;
-		border: 1px solid #e0e0e0;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+		border-radius: 1.5rem;
+		border: 1px solid #e5e7eb;
+		padding: 2rem;
+		text-align: center;
+		box-shadow: 0 20px 35px rgba(15, 23, 42, 0.08);
 	}
 
 	.avatar {
-		width: 80px;
-		height: 80px;
+		width: 96px;
+		height: 96px;
 		border-radius: 50%;
-		background: linear-gradient(135deg, #007bff, #0056b3);
-		color: white;
+		margin: 0 auto 1rem;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		font-size: 2rem;
+		font-size: 2.25rem;
 		font-weight: 600;
-		margin: 0 auto 1rem;
+		color: white;
+		background: linear-gradient(135deg, #2563eb, #7c3aed);
 	}
 
-	.profile-header h2 {
-		font-size: 1.5rem;
-		margin-bottom: 0.5rem;
-		color: #333;
+	h1 {
+		margin: 0;
+		font-size: 2rem;
+		color: #0f172a;
 	}
 
 	.email {
-		color: #666;
-		margin: 0;
+		margin: 0.5rem 0 1.5rem;
+		color: #475569;
+	}
+
+	.stats {
+		display: flex;
+		justify-content: center;
+		gap: 2rem;
+	}
+
+	.stats strong {
+		display: block;
+		font-size: 1.5rem;
+		color: #0f172a;
+	}
+
+	.stats span {
+		color: #64748b;
+		font-size: 0.95rem;
+	}
+
+	.profile-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 1.25rem;
 	}
 
 	.profile-section {
 		background: white;
-		border: 1px solid #e0e0e0;
-		border-radius: 12px;
+		border-radius: 1rem;
+		border: 1px solid #e5e7eb;
 		padding: 1.5rem;
-		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 	}
 
-	.profile-section h3 {
-		font-size: 1.1rem;
-		margin-bottom: 1rem;
-		color: #007bff;
-		border-bottom: 2px solid #007bff;
-		padding-bottom: 0.5rem;
+	.profile-section h2 {
+		margin: 0 0 1rem;
+		font-size: 1.25rem;
+		color: #0f172a;
 	}
 
-	.info-item,
-	.preference-item {
+	.profile-section ul {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.profile-section li {
 		display: flex;
 		justify-content: space-between;
-		padding: 0.75rem 0;
-		border-bottom: 1px solid #f0f0f0;
+		color: #475569;
 	}
 
-	.info-item:last-child,
-	.preference-item:last-child {
-		border-bottom: none;
+	.profile-section strong {
+		color: #0f172a;
 	}
 
-	.label {
-		font-weight: 500;
-		color: #666;
+	.confirmation-section {
+		background: #f8fafc;
+		border-radius: 1.25rem;
+		border: 1px solid #e2e8f0;
+		padding: 1.5rem;
 	}
 
-	.value {
-		color: #333;
-		font-weight: 500;
+	.confirmation-section h2 {
+		margin: 0 0 1rem;
+		font-size: 1.25rem;
+		color: #0f172a;
 	}
 
-	.edit-button {
-		background: #007bff;
-		color: white;
-		border: none;
-		padding: 1rem;
-		border-radius: 12px;
-		font-size: 1rem;
-		font-weight: 600;
-		cursor: pointer;
-		transition: background 0.2s ease;
+	.action-feedback {
+		margin-top: 0.75rem;
+		color: #475569;
+		font-size: 0.95rem;
 	}
 
-	.edit-button:hover {
-		background: #0056b3;
+	@media (max-width: 640px) {
+		.profile-section li {
+			flex-direction: column;
+			gap: 0.25rem;
+		}
 	}
 </style>
 

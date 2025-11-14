@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-
 	type BookingSummary = {
 		reference: string;
 		serviceName: string;
@@ -28,32 +26,46 @@
 		action: { id: string };
 	};
 
-	const dispatch = createEventDispatcher<BookingConfirmationEvents>();
+	interface Props {
+		booking?: BookingSummary | null;
+		status?: 'loading' | 'success' | 'error';
+		errorMessage?: string;
+		supportContact?: SupportContact;
+		actions?: ConfirmationAction[];
+		currency?: string;
+		onAction?: (payload: BookingConfirmationEvents['action']) => void;
+	}
 
-	export let booking: BookingSummary | null = null;
-	export let status: 'loading' | 'success' | 'error' = 'loading';
-	export let errorMessage = 'We could not confirm your booking.';
-	export let supportContact: SupportContact = {};
-	export let actions: ConfirmationAction[] = [];
-	export let currency = 'USD';
+	let {
+		booking = null,
+		status = 'loading',
+		errorMessage = 'We could not confirm your booking.',
+		supportContact = {},
+		actions = [],
+		currency = 'USD',
+		onAction
+	}: Props = $props();
 
 	const skeletonRows = Array.from({ length: 4 });
 
-	$: formattedDate =
+	const formattedDate = $derived(
 		booking?.scheduledFor
 			? new Intl.DateTimeFormat(undefined, {
 					dateStyle: 'full',
 					timeStyle: 'short'
 				}).format(new Date(booking.scheduledFor))
-			: '';
+			: ''
+	);
 
-	$: currencyFormatter = new Intl.NumberFormat(undefined, {
-		style: 'currency',
-		currency
-	});
+	const currencyFormatter = $derived(
+		new Intl.NumberFormat(undefined, {
+			style: 'currency',
+			currency
+		})
+	);
 
 	function handleAction(action: ConfirmationAction) {
-		dispatch('action', { id: action.id });
+		onAction?.({ id: action.id });
 	}
 
 	function variantClass(variant: ConfirmationAction['variant']) {
@@ -154,7 +166,7 @@
 							<a
 								href={action.href}
 								class={`action ${variantClass(action.variant)}`}
-								on:click={() => handleAction(action)}
+								onclick={() => handleAction(action)}
 							>
 								{#if action.icon}<span aria-hidden="true">{action.icon}</span>{/if}
 								{action.label}
@@ -163,7 +175,7 @@
 							<button
 								type="button"
 								class={`action ${variantClass(action.variant)}`}
-								on:click={() => handleAction(action)}
+								onclick={() => handleAction(action)}
 							>
 								{#if action.icon}<span aria-hidden="true">{action.icon}</span>{/if}
 								{action.label}

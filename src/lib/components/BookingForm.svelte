@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-
 	type ServiceSummary = {
 		id: string;
 		name: string;
@@ -40,24 +38,39 @@
 		submit: { booking: Partial<BookingDraft> };
 	};
 
-	const dispatch = createEventDispatcher<BookingFormEvents>();
+	interface Props {
+		booking?: Partial<BookingDraft>;
+		services?: ServiceSummary[];
+		staffMembers?: StaffSummary[];
+		availability?: AvailabilitySlot[];
+		minDate?: string;
+		maxDate?: string;
+		isSubmitting?: boolean;
+		errors?: Partial<Record<BookingField, string>>;
+		onChange?: (payload: BookingFormEvents['change']) => void;
+		onSubmit?: (payload: BookingFormEvents['submit']) => void;
+	}
 
-	export let booking: Partial<BookingDraft> = {};
-	export let services: ServiceSummary[] = [];
-	export let staffMembers: StaffSummary[] = [];
-	export let availability: AvailabilitySlot[] = [];
-	export let minDate: string = new Date().toISOString().split('T')[0];
-	export let maxDate: string | undefined = undefined;
-	export let isSubmitting = false;
-	export let errors: Partial<Record<BookingField, string>> = {};
+	let {
+		booking = {},
+		services = [],
+		staffMembers = [],
+		availability = [],
+		minDate = new Date().toISOString().split('T')[0],
+		maxDate = undefined,
+		isSubmitting = false,
+		errors = {},
+		onChange,
+		onSubmit
+	}: Props = $props();
 
 	const today = new Date().toISOString().split('T')[0];
 
-	$: normalizedMinDate = minDate ?? today;
-	$: currentServiceId = booking.serviceId ?? services[0]?.id ?? '';
-	$: selectedStaffId = booking.staffId ?? '';
-	$: selectedDate = booking.date ?? '';
-	$: availableTimes = deriveTimes(currentServiceId, selectedStaffId, selectedDate);
+	const normalizedMinDate = $derived(minDate ?? today);
+	const currentServiceId = $derived(booking.serviceId ?? services[0]?.id ?? '');
+	const selectedStaffId = $derived(booking.staffId ?? '');
+	const selectedDate = $derived(booking.date ?? '');
+	const availableTimes = $derived(deriveTimes(currentServiceId, selectedStaffId, selectedDate));
 
 	function deriveTimes(serviceId: string, staffId: string | undefined, date: string | undefined) {
 		if (!date) {
@@ -72,12 +85,12 @@
 	}
 
 	function handleFieldChange(field: BookingField, value: unknown) {
-		dispatch('change', { field, value });
+		onChange?.({ field, value });
 	}
 
 	function handleSubmit(event: SubmitEvent) {
 		event.preventDefault();
-		dispatch('submit', { booking });
+		onSubmit?.({ booking });
 	}
 
 	function errorFor(field: BookingField) {
@@ -111,7 +124,7 @@
 	];
 </script>
 
-<form class="booking-form" on:submit={handleSubmit} aria-busy={isSubmitting}>
+<form class="booking-form" onsubmit={handleSubmit} aria-busy={isSubmitting}>
 	<fieldset class="booking-form__section" disabled={isSubmitting}>
 		<legend>Details</legend>
 
@@ -121,7 +134,7 @@
 				name="serviceId"
 				data-testid="service-select"
 				value={booking.serviceId ?? ''}
-				on:change={(event) => handleFieldChange('serviceId', (event.target as HTMLSelectElement).value)}
+				onchange={(event) => handleFieldChange('serviceId', (event.target as HTMLSelectElement).value)}
 				required
 			>
 				<option value="" disabled selected={!booking.serviceId}>Select service</option>
@@ -142,7 +155,7 @@
 				<select
 					name="staffId"
 					value={booking.staffId ?? ''}
-					on:change={(event) => handleFieldChange('staffId', (event.target as HTMLSelectElement).value)}
+					onchange={(event) => handleFieldChange('staffId', (event.target as HTMLSelectElement).value)}
 				>
 					<option value="">No preference</option>
 					{#each staffMembers as staff (staff.id)}
@@ -165,7 +178,7 @@
 					max={maxDate}
 					value={booking.date ?? ''}
 					required
-					on:input={(event) => handleFieldChange('date', (event.target as HTMLInputElement).value)}
+					oninput={(event) => handleFieldChange('date', (event.target as HTMLInputElement).value)}
 				/>
 				{#if errorFor('date')}
 					<p class="field__error">{errorFor('date')}</p>
@@ -179,7 +192,7 @@
 					required
 					disabled={!availableTimes.length}
 					value={booking.time ?? ''}
-					on:change={(event) => handleFieldChange('time', (event.target as HTMLSelectElement).value)}
+					onchange={(event) => handleFieldChange('time', (event.target as HTMLSelectElement).value)}
 				>
 					<option value="" disabled selected={!booking.time}>
 						{availableTimes.length ? 'Select time' : 'Select date first'}
@@ -205,7 +218,7 @@
 				name="customerName"
 				placeholder="Jordan Client"
 				value={booking.customerName ?? ''}
-				on:input={(event) => handleFieldChange('customerName', (event.target as HTMLInputElement).value)}
+				oninput={(event) => handleFieldChange('customerName', (event.target as HTMLInputElement).value)}
 			/>
 			{#if errorFor('customerName')}
 				<p class="field__error">{errorFor('customerName')}</p>
@@ -219,7 +232,7 @@
 				name="customerEmail"
 				placeholder="you@example.com"
 				value={booking.customerEmail ?? ''}
-				on:input={(event) => handleFieldChange('customerEmail', (event.target as HTMLInputElement).value)}
+				oninput={(event) => handleFieldChange('customerEmail', (event.target as HTMLInputElement).value)}
 			/>
 			{#if errorFor('customerEmail')}
 				<p class="field__error">{errorFor('customerEmail')}</p>
@@ -233,7 +246,7 @@
 				name="customerPhone"
 				placeholder="+1 555-0100"
 				value={booking.customerPhone ?? ''}
-				on:input={(event) => handleFieldChange('customerPhone', (event.target as HTMLInputElement).value)}
+				oninput={(event) => handleFieldChange('customerPhone', (event.target as HTMLInputElement).value)}
 			/>
 			{#if errorFor('customerPhone')}
 				<p class="field__error">{errorFor('customerPhone')}</p>
@@ -247,7 +260,7 @@
 			name="notes"
 			rows="3"
 			placeholder="Share goals, preferences, or accessibility needs"
-			on:input={(event) => handleFieldChange('notes', (event.target as HTMLTextAreaElement).value)}
+			oninput={(event) => handleFieldChange('notes', (event.target as HTMLTextAreaElement).value)}
 		>{booking.notes ?? ''}</textarea>
 		{#if errorFor('notes')}
 			<p class="field__error">{errorFor('notes')}</p>

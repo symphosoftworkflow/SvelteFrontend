@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-
 	type ServiceSummary = {
 		id: string;
 		name: string;
@@ -19,28 +17,43 @@
 		query?: string;
 	};
 
-	const dispatch = createEventDispatcher<{
-		select: { service: ServiceSummary };
-		filterChange: { key: keyof ServiceFilters | 'reset'; value: unknown };
-	}>();
+	type SelectPayload = { service: ServiceSummary };
+	type FilterChangePayload = { key: keyof ServiceFilters | 'reset'; value: unknown };
 
-	export let services: ServiceSummary[] = [];
-	export let selectedServiceId: string | null = null;
-	export let filters: ServiceFilters = {};
-	export let layout: 'grid' | 'list' = 'grid';
-	export let isLoading = false;
+	interface Props {
+		services?: ServiceSummary[];
+		selectedServiceId?: string | null;
+		filters?: ServiceFilters;
+		layout?: 'grid' | 'list';
+		isLoading?: boolean;
+		categorySource?: ServiceSummary[] | null;
+		onSelect?: (payload: SelectPayload) => void;
+		onFilterChange?: (payload: FilterChangePayload) => void;
+	}
+
+	let {
+		services = [],
+		selectedServiceId = null,
+		filters = {},
+		layout = 'grid',
+		isLoading = false,
+		categorySource = null,
+		onSelect,
+		onFilterChange
+	}: Props = $props();
 
 	const skeletonTiles = Array.from({ length: 4 });
 
-	$: categories = Array.from(new Set(services.map((service) => service.category))).sort();
-	$: hasResults = !isLoading && services.length > 0;
+	const categoryPool = $derived(categorySource && categorySource.length ? categorySource : services);
+	const categories = $derived(Array.from(new Set(categoryPool.map((service) => service.category))).sort());
+	const hasResults = $derived(!isLoading && services.length > 0);
 
 	function handleSelect(service: ServiceSummary) {
-		dispatch('select', { service });
+		onSelect?.({ service });
 	}
 
 	function handleQueryInput(value: string) {
-		dispatch('filterChange', { key: 'query', value });
+		onFilterChange?.({ key: 'query', value });
 	}
 
 	function toggleCategory(category: string) {
@@ -50,8 +63,7 @@
 		} else {
 			next.add(category);
 		}
-		const value = Array.from(next);
-		dispatch('filterChange', { key: 'categories', value });
+		onFilterChange?.({ key: 'categories', value: Array.from(next) });
 	}
 
 	export const MOCK_SERVICES: ServiceSummary[] = [
@@ -103,7 +115,7 @@
 					name="service-search"
 					placeholder="Search by name or tag"
 					value={filters.query ?? ''}
-					on:input={(event) => handleQueryInput((event.target as HTMLInputElement).value)}
+					oninput={(event) => handleQueryInput((event.target as HTMLInputElement).value)}
 				/>
 			</label>
 
@@ -115,7 +127,7 @@
 								type="button"
 								data-testid="filter-chip"
 								class:selected={filters.categories?.includes(category)}
-								on:click={() => toggleCategory(category)}
+								onclick={() => toggleCategory(category)}
 							>
 								{category}
 							</button>
@@ -147,7 +159,7 @@
 					data-testid="service-card"
 					class="card"
 					class:selected={service.id === selectedServiceId}
-					on:click={() => handleSelect(service)}
+					onclick={() => handleSelect(service)}
 				>
 					{#if service.thumbnailUrl}
 						<img src={service.thumbnailUrl} alt={service.name} class="thumb" />
@@ -183,7 +195,11 @@
 		<div class="empty-state" role="status">
 			<h3>No services match your filters</h3>
 			<p>Try adjusting your search or resetting filters.</p>
-			<button type="button" class="ghost" on:click={() => dispatch('filterChange', { key: 'reset', value: null })}>
+			<button
+				type="button"
+				class="ghost"
+				onclick={() => onFilterChange?.({ key: 'reset', value: null })}
+			>
 				Clear filters
 			</button>
 		</div>

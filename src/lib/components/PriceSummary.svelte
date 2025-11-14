@@ -1,6 +1,4 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
-
 	type PriceLineItem = {
 		id: string;
 		label: string;
@@ -20,32 +18,52 @@
 		applyDiscount: { code: string };
 	};
 
-	const dispatch = createEventDispatcher<PriceSummaryEvents>();
+	interface Props {
+		items?: PriceLineItem[];
+		currency?: string;
+		showDiscountInput?: boolean;
+		totals?: Totals;
+		isCompact?: boolean;
+		onApplyDiscount?: (payload: PriceSummaryEvents['applyDiscount']) => void;
+	}
 
-	export let items: PriceLineItem[] = [];
-	export let currency = 'USD';
-	export let showDiscountInput = false;
-	export let totals: Totals | undefined = undefined;
-	export let isCompact = false;
+	let {
+		items = [],
+		currency = 'USD',
+		showDiscountInput = false,
+		totals = undefined,
+		isCompact = false,
+		onApplyDiscount
+	}: Props = $props();
 
-	let discountCode = '';
+	let discountCode = $state('');
 
-	$: formatter = new Intl.NumberFormat(undefined, {
-		style: 'currency',
-		currency
-	});
+	const formatter = $derived(
+		new Intl.NumberFormat(undefined, {
+			style: 'currency',
+			currency
+		})
+	);
 
-	$: derivedSubtotal = items.filter((item) => item.amount > 0).reduce((sum, item) => sum + item.amount, 0);
-	$: derivedTaxes = items.filter((item) => item.type === 'tax').reduce((sum, item) => sum + item.amount, 0);
-	$: derivedDiscounts = Math.abs(items.filter((item) => item.amount < 0).reduce((sum, item) => sum + item.amount, 0));
-	$: derivedGrandTotal = items.reduce((sum, item) => sum + item.amount, 0);
+	const derivedSubtotal = $derived(
+		items.filter((item) => item.amount > 0).reduce((sum, item) => sum + item.amount, 0)
+	);
+	const derivedTaxes = $derived(
+		items.filter((item) => item.type === 'tax').reduce((sum, item) => sum + item.amount, 0)
+	);
+	const derivedDiscounts = $derived(
+		Math.abs(items.filter((item) => item.amount < 0).reduce((sum, item) => sum + item.amount, 0))
+	);
+	const derivedGrandTotal = $derived(items.reduce((sum, item) => sum + item.amount, 0));
 
-	$: summary = totals ?? {
-		subtotal: derivedSubtotal,
-		taxes: derivedTaxes,
-		discounts: derivedDiscounts,
-		grandTotal: derivedGrandTotal
-	};
+	const summary = $derived(
+		totals ?? {
+			subtotal: derivedSubtotal,
+			taxes: derivedTaxes,
+			discounts: derivedDiscounts,
+			grandTotal: derivedGrandTotal
+		}
+	);
 
 	function formatAmount(amount: number) {
 		return formatter.format(amount);
@@ -58,7 +76,7 @@
 	function handleDiscountSubmit(event: SubmitEvent) {
 		event.preventDefault();
 		if (!discountCode.trim()) return;
-		dispatch('applyDiscount', { code: discountCode.trim() });
+		onApplyDiscount?.({ code: discountCode.trim() });
 		discountCode = '';
 	}
 
@@ -116,7 +134,7 @@
 	</div>
 
 	{#if showDiscountInput}
-		<form class="discount" on:submit={handleDiscountSubmit}>
+		<form class="discount" onsubmit={handleDiscountSubmit}>
 			<label>
 				<span class="sr-only">Discount code</span>
 				<input
