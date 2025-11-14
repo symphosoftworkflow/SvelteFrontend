@@ -9,6 +9,9 @@
 		{ id: 'profile', label: 'Profile', path: '/profile' }
 	];
 
+	/**
+	 * @param {string} path
+	 */
 	function handleTabClick(path) {
 		goto(path);
 	}
