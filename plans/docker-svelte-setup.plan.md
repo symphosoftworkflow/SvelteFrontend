@@ -1,4 +1,4 @@
-<!-- f46d7395-605e-43a7-af90-91f4afd63161 687ce244-c995-4ca6-bab7-95626c6cf0ed -->
+<!-- f46d7395-605e-43a7-af90-91f4afd63161 687ce244-c995-4ca6-bab7-95626c6cf0ed b6d4398b-7e1d-4cde-814c-b9b9977d30a3 -->
 # Docker Setup for Svelte Frontend with Auto-Build
 
 ## Overview
@@ -56,6 +56,47 @@ Create a Docker-based development environment for a Svelte frontend that automat
 ## Usage
 
 After setup, run `docker-compose up` to start the dev server. Code changes will automatically trigger rebuilds.
+
+## Mobile (iOS & Android) Packaging via Capacitor
+
+### Overview
+- Wrap the existing static Svelte build using Capacitor, so the same codebase powers iOS/Android WebViews.
+- Use Capacitor plugins (e.g., Geolocation) to access native APIs when needed.
+
+### Steps
+1. **Install Capacitor tooling**
+   ```bash
+   npm install --save @capacitor/core @capacitor/cli
+   npx cap init           # set webDir to \"build\"
+   ```
+2. **Add platforms**
+   ```bash
+   npx cap add ios
+   npx cap add android
+   ```
+3. **Build workflow**
+   - Run `BASE_PATH=/svelte npm run build` (or standard build if base is root).
+   - `npx cap sync` copies the latest `build/` output into the native projects.
+   - Open `ios/` in Xcode and `android/` in Android Studio to run/sign/publish.
+4. **Using native features (example: Geolocation)**
+   ```ts
+   import { Geolocation } from '@capacitor/geolocation';
+
+   async function getDeviceLocation() {
+     const permissions = await Geolocation.checkPermissions();
+     if (permissions.location !== 'granted') {
+       await Geolocation.requestPermissions();
+     }
+     const pos = await Geolocation.getCurrentPosition();
+     return pos.coords;
+   }
+   ```
+   - Update `Info.plist` (iOS) with `NSLocationWhenInUseUsageDescription`.
+   - Update `AndroidManifest.xml` with `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION`.
+
+5. **Preview / Deployment**
+   - `npx cap open ios` / `npx cap open android` for local testing.
+   - Submit via standard App Store / Play Store processes once signed.
 
 ### To-dos
 

@@ -1,6 +1,7 @@
 <script>
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 
 	const tabs = [
 		{ id: 'home', label: 'Home', path: '/' },
@@ -12,8 +13,19 @@
 	/**
 	 * @param {string} path
 	 */
+	function withBase(path) {
+		if (path === '/') {
+			return base || '/';
+		}
+
+		return `${base}${path}`;
+	}
+
+	/**
+	 * @param {string} path
+	 */
 	function handleTabClick(path) {
-		goto(path);
+		goto(withBase(path));
 	}
 </script>
 
@@ -21,7 +33,7 @@
 	{#each tabs as tab (tab.id)}
 		<button
 			class="tab-button"
-			class:active={$page.url.pathname === tab.path}
+			class:active={$page.url.pathname === withBase(tab.path)}
 			onclick={() => handleTabClick(tab.path)}
 			aria-label={tab.label}
 			type="button"
