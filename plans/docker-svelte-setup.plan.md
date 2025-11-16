@@ -98,6 +98,302 @@ After setup, run `docker-compose up` to start the dev server. Code changes will 
    - `npx cap open ios` / `npx cap open android` for local testing.
    - Submit via standard App Store / Play Store processes once signed.
 
+## Push Notifications (iOS & Android via Capacitor)
+
+### Overview
+Use Capacitor’s Push Notifications plugin to register the WebView app with APNs (iOS) and FCM (Android), then use those tokens in your backend or a third-party service to send messages.
+> **Cost note:** Firebase Cloud Messaging is free for unlimited push delivery (no monthly fees) on both Android and iOS. You only pay if you add other Firebase paid services or exceed the free tier of ancillary products.
+
+### Steps
+1. **Install Capacitor Push plugin & notification library**
+   ```bash
+   npm install @capacitor/push-notifications
+   npm install @capacitor/local-notifications   # optional: schedule on-device alerts
+   npx cap sync
+   ```
+2. **Configure platforms**
+   - **iOS**
+     - In Xcode, enable Push Notifications & Background Modes (Remote notifications) for the target.
+     - Upload your APNs key/cert to your backend provider (or Firebase if using FCM for iOS).
+   - **Android**
+     - Create a Firebase project; download `google-services.json` and place it under `android/app/`.
+     - Update `android/build.gradle` & `android/app/build.gradle` with the Google Services plugin.
+3. **Request permissions, register, and bind token**
+   ```ts
+   import { PushNotifications } from '@capacitor/push-notifications';
+
+   async function sendTokenToBackend(token) {
+     await fetch('https://api.example.com/push/register', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       credentials: 'include', // assumes auth cookie/session
+       body: JSON.stringify({
+         userId: currentUserId, // from your auth/session store
+         platform: Capacitor.getPlatform(), // 'ios' or 'android'
+         token
+       })
+     });
+   }
+
+   export async function initPush() {
+     let permStatus = await PushNotifications.checkPermissions();
+     if (permStatus.receive !== 'granted') {
+       permStatus = await PushNotifications.requestPermissions();
+     }
+     if (permStatus.receive !== 'granted') {
+       console.warn('Push permission not granted');
+       return;
+     }
+
+     await PushNotifications.register();
+
+     PushNotifications.addListener('registration', async (token) => {
+       console.log('Device push token:', token.value);
+       try {
+         await sendTokenToBackend(token.value);
+       } catch (err) {
+         console.error('Failed to bind token', err);
+       }
+     });
+
+     PushNotifications.addListener('pushNotificationReceived', (notification) => {
+       console.log('Foreground push:', notification);
+       // optionally show custom UI or local notification
+     });
+
+     PushNotifications.addListener('pushNotificationActionPerformed', (notification) => {
+       console.log('Notification tapped', notification.actionId, notification.notification);
+     });
+   }
+   ```
+4. **Backend delivery**
+   - Store tokens per user and use a push service (Firebase Cloud Messaging, OneSignal, or your own APNs server) to send notifications.
+   - Example: store tokens in a relational table
+     ```sql
+     CREATE TABLE user_push_tokens (
+       id SERIAL PRIMARY KEY,
+       user_id UUID NOT NULL REFERENCES users(id),
+       platform TEXT NOT NULL CHECK (platform IN ('ios','android')),
+       token TEXT NOT NULL,
+       created_at TIMESTAMP DEFAULT now(),
+       UNIQUE(user_id, token)
+     );
+     ```
+   - Send to specific user:
+     ```ts
+     import { getMessaging } from 'firebase-admin/messaging';
+     const messaging = getMessaging();
+
+     async function sendPushToUser(userId, payload) {
+       const tokens = await db('user_push_tokens')
+         .select('token')
+         .where({ user_id: userId });
+       if (!tokens.length) return;
+
+       await messaging.sendEachForMulticast({
+         tokens: tokens.map((t) => t.token),
+         notification: {
+           title: payload.title,
+           body: payload.body
+         },
+         data: payload.data ?? {}
+       });
+     }
+     ```
+   - For iOS via FCM, enable APNs key inside Firebase and use FCM’s HTTP v1 API.
+5. **Testing**
+   - Run on physical devices (simulators can’t receive APNs/FCM push).
+   - Use Firebase console or your backend to send test messages; confirm `pushNotificationReceived` fires when app is foregrounded and `pushNotificationActionPerformed` fires when tapped from tray.
+
+## Web Push Notifications (Browsers)
+
+### Overview
+- Use the Web Push API + service workers so the existing Svelte app can notify browsers even when inactive.
+- Requires a VAPID key pair and HTTPS hosting.
+
+### Steps
+1. **Generate VAPID keys**
+   ```bash
+   npx web-push generate-vapid-keys
+   ```
+   Store the public key in your frontend bundle (e.g., env variable) and the private key on the server.
+
+2. **Register service worker & subscribe**
+   ```ts
+   // In a Svelte component/layout on load
+   if ('serviceWorker' in navigator && 'PushManager' in window) {
+     const registration = await navigator.serviceWorker.register('/service-worker.js');
+
+     const permission = await Notification.requestPermission();
+     if (permission === 'granted') {
+       const subscription = await registration.pushManager.subscribe({
+         userVisibleOnly: true,
+         applicationServerKey: VAPID_PUBLIC_KEY
+       });
+
+       await fetch('/api/push/web/subscribe', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         credentials: 'include',
+         body: JSON.stringify({
+           userId: currentUserId,
+           subscription
+         })
+       });
+     }
+   }
+   ```
+
+3. **Service worker handlers (`src/service-worker.ts`)**
+   ```js
+   self.addEventListener('push', (event) => {
+     const payload = event.data?.json() ?? {};
+     event.waitUntil(
+       self.registration.showNotification(payload.title || 'New update', {
+         body: payload.body,
+         icon: '/favicon.svg',
+         data: payload
+       })
+     );
+   });
+
+   self.addEventListener('notificationclick', (event) => {
+     event.notification.close();
+     const url = event.notification.data?.url || '/svelte';
+     event.waitUntil(clients.openWindow(url));
+   });
+   ```
+
+4. **Backend delivery**
+   ```ts
+   import webpush from 'web-push';
+
+   webpush.setVapidDetails(
+     'mailto:admin@example.com',
+     VAPID_PUBLIC_KEY,
+     VAPID_PRIVATE_KEY
+   );
+
+   async function sendWebNotification(subscription, payload) {
+     await webpush.sendNotification(subscription, JSON.stringify(payload));
+   }
+   ```
+   - Store each subscription JSON alongside the user (similar to native tokens).
+   - When targeting a user, load their active subscriptions and call `sendWebNotification` for each.
+
+5. **Testing**
+   - Serve the site over HTTPS (required for push).
+   - Use Chrome/Firefox dev tools (Application → Service Workers) to simulate push payloads and verify notifications appear.
+
+## Realtime Staff Tracking with Longdo Map (Mobile + Web)
+
+### Overview
+- Collect staff GPS coordinates from the Capacitor app, push them to your backend in real time, and render them on Longdo Map in the web console.
+- References: [Longdo Map overview](https://map.longdo.com/docs/) and routing examples.
+
+### Steps
+1. **Obtain Longdo API key**
+   - Register at [https://map.longdo.com/docs/javascript/getapi](https://map.longdo.com/docs/javascript/getapi) and whitelist your domains/hosts.
+
+2. **Mobile: capture positions continuously**
+   ```ts
+   import { Geolocation } from '@capacitor/geolocation';
+
+   async function startRealtimeTracking(staffId) {
+     const perm = await Geolocation.requestPermissions();
+     if (perm.location !== 'granted') return;
+
+     const watchId = await Geolocation.watchPosition(
+       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 5_000 },
+       (position, err) => {
+         if (err || !position) return;
+         fetch('https://api.example.com/tracking/update', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             staffId,
+             lat: position.coords.latitude,
+             lon: position.coords.longitude,
+             timestamp: position.timestamp
+           })
+         });
+       }
+     );
+     return () => Geolocation.clearWatch({ id: watchId });
+   }
+   ```
+   - Consider batching updates or using WebSocket if you need sub-second accuracy.
+
+3. **Backend streaming**
+   - Store current coordinates in Redis / database.
+   - Broadcast updates via WebSocket/SSE to the dispatcher dashboard:
+     ```ts
+     wss.on('connection', (socket) => {
+       // send initial positions
+       socket.send(JSON.stringify({ type: 'seed', staff: currentStaffPositions }));
+     });
+
+     async function handleStaffUpdate(payload) {
+       await redis.hset('staff_locations', payload.staffId, JSON.stringify(payload));
+       wss.clients.forEach((client) => {
+         if (client.readyState === WebSocket.OPEN) {
+           client.send(JSON.stringify({ type: 'update', data: payload }));
+         }
+       });
+     }
+     ```
+
+4. **Web frontend: Longdo Map integration**
+   ```html
+   <script src="https://api.longdo.com/map/?key=YOUR_LONGDO_KEY"></script>
+   <div id="map"></div>
+   <script>
+     const map = new longdo.Map({
+       placeholder: document.getElementById('map'),
+       layer: [longdo.Layers.GRAY, longdo.Layers.TRAFFIC]
+     });
+
+     const staffMarkers = new Map();
+
+     function upsertMarker({ staffId, lat, lon }) {
+       if (staffMarkers.has(staffId)) {
+         staffMarkers.get(staffId).location({ lat, lon });
+         return;
+       }
+       const marker = new longdo.Marker({ lat, lon }, {
+         title: `Staff ${staffId}`,
+         detail: 'Realtime location'
+       });
+       map.Overlays.add(marker);
+       staffMarkers.set(staffId, marker);
+     }
+
+     const ws = new WebSocket('wss://api.example.com/tracking/socket');
+     ws.onmessage = (event) => {
+       const msg = JSON.parse(event.data);
+       if (msg.type === 'seed') {
+         msg.staff.forEach(upsertMarker);
+       } else if (msg.type === 'update') {
+         upsertMarker(msg.data);
+       }
+     };
+   </script>
+   ```
+
+5. **Optional routing/driving directions**
+   - Use Longdo RouteService to compute ETA between staff and customer:
+     ```js
+     async function fetchRoute(fLon, fLat, tLon, tLat) {
+       const res = await fetch(`https://api.longdo.com/RouteService/json/route/guide?key=${LONGDO_KEY}&flon=${fLon}&flat=${fLat}&tlon=${tLon}&tlat=${tLat}`);
+       return res.json();
+     }
+     ```
+   - Display returned steps or polyline on the map using `map.Route`.
+
+6. **Testing**
+   - Simulate positions via device emulators or custom tooling.
+   - Verify the dashboard updates instantly and check traffic overlays on Longdo Map (`longdo.Layers.TRAFFIC`).
+
 ### To-dos
 
 - [x] Create package.json with SvelteKit dependencies and dev scripts
